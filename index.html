@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PxRuler">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#e6e9ec">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<title>PxRuler</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Patrick+Hand&display=swap">
+<style>
+:root{color-scheme:light}
+body{margin:0;font-size:14px}
+[hidden]{display:none!important}
+/* Layout: full-bleed grid canvas, fixed tool pill on the left, status chips at the bottom.
+   Palette: neutral surround, white phone screen, pink = single cell, blue = multi, yellow = edge run, red = measure box. */
+:root{
+  --bg:#e6e9ec;
+  --ink:#22282e;
+  --menu:rgba(112,116,120,.94);
+  --menu-ink:#ffffff;
+  --chip-bg:rgba(255,255,255,.95);
+  --chip-ink:#22282e;
+  --chip-line:rgba(34,40,46,.16);
+  --accent:#2f7de1;
+  --red:#ff2a2a;
+  --pink:#f55ba8;
+  --blue:#6fc9e3;
+  --yellow:#f2f22e;
+  --bub-pink:#f9cbe2;
+  --bub-blue:#c9ecf5;
+  --bub-yellow:#f6f3a4;
+  --bub-ink:#2b2b2b;
+  --font-ui:"Inter",system-ui,-apple-system,"Segoe UI","PingFang TC","Noto Sans TC",sans-serif;
+  --font-hand:"Patrick Hand","Segoe Print","Bradley Hand",ui-rounded,"PingFang TC","Noto Sans TC",sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#16191c;
+    --ink:#e6e9ec;
+    --menu:rgba(150,154,158,.92);
+    --chip-bg:rgba(36,40,44,.95);
+    --chip-ink:#e6e9ec;
+    --chip-line:rgba(255,255,255,.18);
+    --accent:#5b9cf0;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16191c;
+  --ink:#e6e9ec;
+  --menu:rgba(150,154,158,.92);
+  --chip-bg:rgba(36,40,44,.95);
+  --chip-ink:#e6e9ec;
+  --chip-line:rgba(255,255,255,.18);
+  --accent:#5b9cf0;
+  color-scheme:dark;
+}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--font-ui);
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
+}
+#cv{position:fixed;inset:0;display:block;touch-action:none;cursor:crosshair}
+#cv.hand{cursor:grab}
+#ov{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:2}
+.bubble{
+  position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;white-space:nowrap;will-change:transform;
+  font:400 18px/1 var(--font-hand);color:var(--bub-ink);border:0;border-radius:999px;padding:8px 14px;min-height:34px;
+}
+.bubble.pink{background:var(--bub-pink)}
+.bubble.blue{background:var(--bub-blue)}
+.bubble.yellow{background:var(--bub-yellow)}
+.bubble:focus-visible,.chip:focus-visible,.tool:focus-visible,.btn:focus-visible,#tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+#menu{
+  position:fixed;z-index:5;
+  top:calc(env(safe-area-inset-top,0px) + 12px);
+  left:calc(env(safe-area-inset-left,0px) + 6px);
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  width:48px;padding:14px 0;border-radius:999px;background:var(--menu);
+  transition:transform .25s ease;
+}
+#menu.collapsed{transform:translateX(calc(-100% - 16px))}
+.tool{
+  width:40px;height:40px;border-radius:50%;border:0;background:transparent;color:var(--menu-ink);
+  display:grid;place-items:center;cursor:pointer;padding:0;
+}
+.tool svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.tool[aria-pressed="true"]{background:rgba(255,255,255,.30)}
+.tool:disabled{opacity:.4;cursor:default}
+#tab{
+  position:fixed;z-index:5;left:0;width:20px;height:40px;border:0;padding:0;cursor:pointer;
+  background:var(--menu);border-radius:0 20px 20px 0;color:var(--menu-ink);display:grid;place-items:center;
+}
+#tab svg{width:10px;height:14px;fill:currentColor}
+
+#bar{
+  position:fixed;z-index:4;left:50%;transform:translateX(-50%);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 12px);display:flex;gap:8px;align-items:center;
+}
+.chip{
+  font:400 18px/1 var(--font-hand);background:var(--chip-bg);color:var(--chip-ink);
+  border:1px solid var(--chip-line);border-radius:999px;padding:8px 16px;white-space:nowrap;
+}
+button.chip{cursor:pointer}
+
+#panel{
+  position:fixed;z-index:6;left:calc(env(safe-area-inset-left,0px) + 70px);
+  width:min(260px,calc(100vw - 90px));padding:14px;border-radius:16px;
+  background:var(--chip-bg);color:var(--chip-ink);border:1px solid var(--chip-line);
+  display:grid;gap:12px;font-size:14px;
+}
+#panel p{margin:0;font-size:13px;line-height:1.45;opacity:.75}
+.btn{
+  font:600 14px/1 var(--font-ui);padding:11px 12px;border-radius:10px;border:1px solid var(--chip-line);
+  background:transparent;color:var(--chip-ink);cursor:pointer;text-align:center;
+}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:disabled{opacity:.45;cursor:default}
+.row{display:flex;align-items:center;gap:10px}
+.row input[type=range]{flex:1;min-width:0;accent-color:var(--accent)}
+.row output{min-width:3ch;text-align:right;font-variant-numeric:tabular-nums}
+
+#toast{
+  position:fixed;z-index:8;left:50%;transform:translateX(-50%);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 64px);max-width:calc(100vw - 32px);
+  background:#22282e;color:#fff;font:400 15px/1.35 var(--font-ui);padding:10px 16px;border-radius:12px;
+  opacity:0;pointer-events:none;transition:opacity .2s;text-align:center;overflow-wrap:anywhere;
+}
+#toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){#menu,#toast{transition:none}}
+</style>
+</head>
+<body>
+
+<canvas id="cv" aria-label="像素格線畫布"></canvas>
+<div id="ov"></div>
+
+<nav id="menu" aria-label="工具">
+  <button class="tool" id="t-arrow" aria-label="箭頭：點格子" aria-pressed="true">
+    <svg viewBox="0 0 24 24"><path d="M5 3.5l13 7.5-5.5 1.8L10 18.5z"/></svg>
+  </button>
+  <button class="tool" id="t-hand" aria-label="手：移動畫面" aria-pressed="false">
+    <svg viewBox="0 0 24 24"><path d="M8.5 13V6.2a1.6 1.6 0 013.2 0V11M11.7 10.5V4.7a1.6 1.6 0 013.2 0V11M14.9 10.8V6.3a1.6 1.6 0 013.2 0v7.4c0 4-2.4 7-6 7-3 0-4.4-1.8-5.8-4.6l-1.6-3.2a1.5 1.5 0 012.6-1.4L8.5 13"/></svg>
+  </button>
+  <button class="tool" id="t-lock" aria-label="鎖定選取" aria-pressed="false">
+    <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9.5" rx="2.2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>
+  </button>
+  <button class="tool" id="t-in" aria-label="放大">
+    <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M7.8 10.5h5.4M10.5 7.8v5.4"/></svg>
+  </button>
+  <button class="tool" id="t-out" aria-label="縮小">
+    <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M7.8 10.5h5.4"/></svg>
+  </button>
+  <button class="tool" id="t-hint" aria-label="框選提示" aria-pressed="false">
+    <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="3 2.6"/><path d="M12 8v8M8 12h8"/></svg>
+  </button>
+  <button class="tool" id="t-img" aria-label="上傳截圖">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M4 18l5-5 4 4 3-3 4 4"/></svg>
+  </button>
+  <button class="tool" id="t-x" aria-label="收合選單">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+  </button>
+</nav>
+<button id="tab" hidden aria-label="展開選單"><svg viewBox="0 0 10 14"><path d="M1 1l8 6-8 6z"/></svg></button>
+
+<div id="panel" hidden>
+  <button class="btn primary" id="pick" type="button">選擇螢幕截圖</button>
+  <div class="row">
+    <label for="opa">透明度</label>
+    <input id="opa" type="range" min="10" max="100" step="5" value="50">
+    <output id="opaOut" for="opa">50%</output>
+  </div>
+  <button class="btn" id="rm" type="button" disabled>移除截圖（改回純白）</button>
+  <p>截圖會自動對齊 393×852，iPhone 14 Pro 的原始截圖可直接上傳。</p>
+</div>
+
+<div id="bar">
+  <span class="chip" id="cellchip">格 50px</span>
+  <button class="chip" id="clear" type="button" hidden>清除選取</button>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="file" accept="image/*" hidden>
+
+<script>
+/*PURE-START*/
+const W0 = 393, H0 = 852;
+const LEVELS = [50, 20, 10, 5, 2, 1];
+const MULT = [1, 2, 4, 8, 16, 32];
+
+function runsOf(sorted) {
+  const runs = [];
+  let s = sorted[0], p = s;
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === p + 1) { p = sorted[i]; }
+    else { runs.push([s, p]); s = p = sorted[i]; }
+  }
+  runs.push([s, p]);
+  return runs;
+}
+
+// arr: [[col,row],...] at cell size c. Returns gaps, edge runs, and cells that belong to an edge run.
+function analyze(arr, c) {
+  const C = Math.ceil(W0 / c), R = Math.ceil(H0 / c);
+  const X0 = i => i * c, X1 = i => Math.min(W0, (i + 1) * c);
+  const Y0 = i => i * c, Y1 = i => Math.min(H0, (i + 1) * c);
+  const num = (col, row) => row * C + col + 1;
+  const byRow = new Map(), byCol = new Map();
+  for (const [col, row] of arr) {
+    if (!byRow.has(row)) byRow.set(row, []);
+    byRow.get(row).push(col);
+    if (!byCol.has(col)) byCol.set(col, []);
+    byCol.get(col).push(row);
+  }
+  const gaps = [], edges = [], runCells = new Set();
+  for (const [row, list] of byRow) {
+    list.sort((a, b) => a - b);
+    const runs = runsOf(list);
+    runs.forEach(([a, b], i) => {
+      if (b - a >= 1) {
+        const L = a === 0, Rt = b === C - 1;
+        if (L !== Rt) {
+          for (let x = a; x <= b; x++) runCells.add(x + ',' + row);
+          if (L) edges.push({ dir: 'h', side: '左', rect: [0, Y0(row), X1(b), Y1(row)], dist: X1(b), from: num(a, row), to: num(b, row) });
+          else edges.push({ dir: 'h', side: '右', rect: [X0(a), Y0(row), W0, Y1(row)], dist: W0 - X0(a), from: num(a, row), to: num(b, row) });
+        }
+      }
+      if (i < runs.length - 1) {
+        const a2 = runs[i + 1][0];
+        gaps.push({ dir: 'h', rect: [X1(b), Y0(row), X0(a2), Y1(row)], dist: X0(a2) - X1(b), a: num(b, row), b: num(a2, row) });
+      }
+    });
+  }
+  for (const [col, list] of byCol) {
+    list.sort((a, b) => a - b);
+    const runs = runsOf(list);
+    runs.forEach(([a, b], i) => {
+      if (b - a >= 1) {
+        const T = a === 0, B = b === R - 1;
+        if (T !== B) {
+          for (let y = a; y <= b; y++) runCells.add(col + ',' + y);
+          if (T) edges.push({ dir: 'v', side: '上', rect: [X0(col), 0, X1(col), Y1(b)], dist: Y1(b), from: num(col, a), to: num(col, b) });
+          else edges.push({ dir: 'v', side: '下', rect: [X0(col), Y0(a), X1(col), H0], dist: H0 - Y0(a), from: num(col, a), to: num(col, b) });
+        }
+      }
+      if (i < runs.length - 1) {
+        const a2 = runs[i + 1][0];
+        gaps.push({ dir: 'v', rect: [X0(col), Y1(b), X1(col), Y0(a2)], dist: Y0(a2) - Y1(b), a: num(col, b), b: num(col, a2) });
+      }
+    });
+  }
+  return { gaps, edges, runCells };
+}
+/*PURE-END*/
+
+(() => {
+  const $ = id => document.getElementById(id);
+  const cv = $('cv'), ctx = cv.getContext('2d'), ov = $('ov');
+  const menu = $('menu'), tab = $('tab'), panel = $('panel'), toastEl = $('toast');
+  const tLock = $('t-lock'), tHint = $('t-hint');
+  const tArrow = $('t-arrow'), tHand = $('t-hand'), tIn = $('t-in'), tOut = $('t-out'), tImg = $('t-img'), tX = $('t-x');
+  const cellchip = $('cellchip'), clearBtn = $('clear'), fileIn = $('file'), opa = $('opa'), opaOut = $('opaOut'), rm = $('rm');
+
+  let vw = 0, vh = 0, dpr = 1, s0 = 1, level = 0, k = 0, ox = 0, oy = 0;
+  let tool = 'arrow', img = null, imgOpacity = 0.5;
+  const sel = new Set();
+  let selC = 50, locked = false, hint = false; // selC: cell size the current selection was made at
+  let items = [], gaps = [], edges = [], runCells = new Set();
+  let theme = {};
+
+  const cell = () => LEVELS[level];
+  const cols = () => Math.ceil(W0 / cell());
+  const rows = () => Math.ceil(H0 / cell());
+  const num = (col, row) => row * Math.ceil(W0 / selC) + col + 1;
+
+  function refreshTheme() {
+    const cs = getComputedStyle(document.documentElement);
+    const g = n => cs.getPropertyValue(n).trim();
+    theme = { bg: g('--bg'), ink: g('--ink'), red: g('--red'), pink: g('--pink'), blue: g('--blue'), yellow: g('--yellow') };
+  }
+
+  function clampView() {
+    const m = 60;
+    const ax = vw - W0 * k - m, bx = m, ay = vh - H0 * k - m, by = m;
+    ox = Math.min(Math.max(ox, Math.min(ax, bx)), Math.max(ax, bx));
+    oy = Math.min(Math.max(oy, Math.min(ay, by)), Math.max(ay, by));
+  }
+
+  function centerView() {
+    ox = (vw - W0 * k) / 2;
+    oy = (vh - H0 * k) / 2;
+  }
+
+  function resize() {
+    const first = k === 0;
+    const wx = first ? W0 / 2 : (vw / 2 - ox) / k;
+    const wy = first ? H0 / 2 : (vh / 2 - oy) / k;
+    vw = window.innerWidth; vh = window.innerHeight; dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(vw * dpr); cv.height = Math.round(vh * dpr);
+    cv.style.width = vw + 'px'; cv.style.height = vh + 'px';
+    s0 = Math.min(vw / W0, vh / H0);
+    k = s0 * MULT[level];
+    if (first || level === 0) centerView();
+    else { ox = vw / 2 - wx * k; oy = vh / 2 - wy * k; clampView(); }
+    draw();
+  }
+
+  function setLevel(n, cx = vw / 2, cy = vh / 2) {
+    n = Math.max(0, Math.min(LEVELS.length - 1, n));
+    if (n === level) return;
+    const wx = (cx - ox) / k, wy = (cy - oy) / k;
+    level = n; k = s0 * MULT[level];
+    ox = cx - wx * k; oy = cy - wy * k;
+    if (level === 0) centerView(); else clampView();
+    if (!locked) sel.clear();
+    rebuild(); updateChrome(); draw();
+  }
+
+  // ---------- overlay bubbles ----------
+  function bubble(kind, text, copy, rect, place) {
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'bubble ' + kind;
+    el.textContent = text;
+    el.title = '點一下複製';
+    el.addEventListener('click', () => copyText(copy));
+    ov.appendChild(el);
+    items.push({ el, rect, place });
+  }
+
+  function rebuild() {
+    ov.textContent = '';
+    items = []; gaps = []; edges = []; runCells = new Set();
+    if (sel.size === 0) return;
+    const c = selC;
+    const arr = [...sel].map(s => s.split(',').map(Number));
+    if (arr.length === 1) {
+      const [col, row] = arr[0];
+      const x0 = col * c, y0 = row * c;
+      bubble('pink', '#' + num(col, row), `#${num(col, row)} @${c}px (x:${x0}, y:${y0})`,
+        [x0, y0, Math.min(W0, x0 + c), Math.min(H0, y0 + c)], 'below');
+      return;
+    }
+    const res = analyze(arr, c);
+    gaps = res.gaps; edges = res.edges; runCells = res.runCells;
+    for (const g of gaps) {
+      const dirText = g.dir === 'h' ? '橫向' : '直向';
+      bubble('blue', g.dist + ' px', `#${g.a} ↔ #${g.b}｜${dirText}內側距離 ${g.dist}px｜@${c}px`, g.rect, g.dir === 'h' ? 'below' : 'right');
+    }
+    for (const e of edges) {
+      bubble('yellow', 'to edge ' + e.dist + ' px', `#${e.from}–#${e.to}｜到${e.side}邊緣 ${e.dist}px｜@${c}px`, e.rect, e.dir === 'h' ? 'below' : 'right');
+    }
+  }
+
+  function positionOverlay() {
+    for (const it of items) {
+      const [rx0, ry0, rx1, ry1] = it.rect;
+      const sx0 = ox + rx0 * k, sx1 = ox + rx1 * k, sy0 = oy + ry0 * k, sy1 = oy + ry1 * k;
+      let x, y, tx, ty;
+      if (it.place === 'below') {
+        x = (sx0 + sx1) / 2; y = sy1 + 8; tx = '-50%'; ty = '0';
+        if (y + 40 > vh) { y = sy0 - 8; ty = '-100%'; }
+        x = Math.max(60, Math.min(vw - 60, x));
+      } else {
+        const mid = (rx0 + rx1) / 2;
+        y = (sy0 + sy1) / 2; ty = '-50%';
+        if (mid > W0 / 2) { x = sx0 - 10; tx = '-100%'; } else { x = sx1 + 10; tx = '0'; }
+      }
+      it.el.style.transform = `translate(${x}px,${y}px) translate(${tx},${ty})`;
+    }
+  }
+
+  // ---------- drawing ----------
+  function rrect(x, y, w, h, r) {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+    else ctx.rect(x, y, w, h);
+  }
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = theme.bg; ctx.fillRect(0, 0, vw, vh);
+    const rx = ox, ry = oy, rw = W0 * k, rh = H0 * k;
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(rx, ry, rw, rh);
+    if (img) { ctx.globalAlpha = imgOpacity; ctx.drawImage(img, rx, ry, rw, rh); ctx.globalAlpha = 1; }
+
+    ctx.save();
+    ctx.beginPath(); ctx.rect(rx, ry, rw, rh); ctx.clip();
+    const c = cell(), C = cols(), R = rows();
+    const yTop = Math.max(ry, 0), yBot = Math.min(ry + rh, vh);
+    const xLeft = Math.max(rx, 0), xRight = Math.min(rx + rw, vw);
+    ctx.strokeStyle = 'rgba(50,60,70,.30)'; ctx.lineWidth = 1; ctx.beginPath();
+    const i0 = Math.max(0, Math.floor(-ox / k / c)), i1 = Math.min(C, Math.ceil((vw - ox) / k / c));
+    for (let i = i0; i <= i1; i++) {
+      const x = Math.round(ox + Math.min(i * c, W0) * k) + 0.5;
+      ctx.moveTo(x, yTop); ctx.lineTo(x, yBot);
+    }
+    const j0 = Math.max(0, Math.floor(-oy / k / c)), j1 = Math.min(R, Math.ceil((vh - oy) / k / c));
+    for (let j = j0; j <= j1; j++) {
+      const y = Math.round(oy + Math.min(j * c, H0) * k) + 0.5;
+      ctx.moveTo(xLeft, y); ctx.lineTo(xRight, y);
+    }
+    ctx.stroke();
+    // center cross: 50% black dashed, at the exact middle of the screen (196.5, 426)
+    const cx = ox + (W0 / 2) * k, cy = oy + (H0 / 2) * k;
+    ctx.setLineDash([7, 5]); ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 1.5; ctx.beginPath();
+    ctx.moveTo(cx, yTop); ctx.lineTo(cx, yBot);
+    ctx.moveTo(xLeft, cy); ctx.lineTo(xRight, cy);
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.restore();
+
+    ctx.strokeStyle = theme.ink; ctx.lineWidth = 2; ctx.strokeRect(rx, ry, rw, rh);
+    drawSelection();
+    positionOverlay();
+  }
+
+  function drawSelection() {
+    if (sel.size === 0) return;
+    const c = selC;
+    if (hint) {
+      const C = Math.ceil(W0 / c), R = Math.ceil(H0 / c);
+      const ci0 = Math.max(0, Math.floor(-ox / k / c)), ci1 = Math.min(C - 1, Math.floor((vw - ox) / k / c));
+      const rj0 = Math.max(0, Math.floor(-oy / k / c)), rj1 = Math.min(R - 1, Math.floor((vh - oy) / k / c));
+      const seen = new Set();
+      ctx.save();
+      ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(47,125,225,.5)';
+      const box = (col, row) => {
+        const id = col + ',' + row;
+        if (seen.has(id)) return;
+        seen.add(id);
+        const x0 = ox + col * c * k, y0 = oy + row * c * k;
+        const x1 = ox + Math.min(W0, (col + 1) * c) * k, y1 = oy + Math.min(H0, (row + 1) * c) * k;
+        ctx.strokeRect(x0 + 1, y0 + 1, x1 - x0 - 2, y1 - y0 - 2);
+      };
+      for (const key of sel) {
+        const [col, row] = key.split(',').map(Number);
+        for (let i = ci0; i <= ci1; i++) box(i, row);
+        for (let j = rj0; j <= rj1; j++) box(col, j);
+      }
+      ctx.restore();
+    }
+    const single = sel.size === 1;
+    for (const key of sel) {
+      const [col, row] = key.split(',').map(Number);
+      const x0 = ox + col * c * k, y0 = oy + row * c * k;
+      const x1 = ox + Math.min(W0, (col + 1) * c) * k, y1 = oy + Math.min(H0, (row + 1) * c) * k;
+      const w = x1 - x0, h = y1 - y0;
+      if (x1 < 0 || y1 < 0 || x0 > vw || y0 > vh) continue;
+      ctx.fillStyle = single ? theme.pink : (runCells.has(key) ? theme.yellow : theme.blue);
+      rrect(x0 + 1.5, y0 + 1.5, w - 3, h - 3, Math.max(0, Math.min(10, w * 0.22, h * 0.22)));
+      ctx.fill();
+      if (single) {
+        ctx.strokeStyle = theme.red; ctx.lineWidth = 2.5; ctx.strokeRect(x0, y0, w, h);
+      } else if (w >= 30 && h >= 20) {
+        ctx.fillStyle = '#14343f'; ctx.font = '13px "Patrick Hand", ui-rounded, sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('#' + num(col, row), (x0 + x1) / 2, (y0 + y1) / 2);
+      }
+    }
+    ctx.lineWidth = 2.5; ctx.strokeStyle = theme.red;
+    for (const g of gaps) {
+      const [a, b, c2, d] = g.rect;
+      const x0 = ox + a * k, y0 = oy + b * k, w = (c2 - a) * k, h = (d - b) * k;
+      // measure bar through the gap
+      ctx.fillStyle = theme.blue;
+      if (g.dir === 'h') {
+        const pad = Math.min(6, w * 0.2), th = Math.min(10, h * 0.3);
+        rrect(x0 + pad, y0 + h / 2 - th / 2, Math.max(1, w - pad * 2), th, th / 2);
+      } else {
+        const pad = Math.min(6, h * 0.2), th = Math.min(10, w * 0.3);
+        rrect(x0 + w / 2 - th / 2, y0 + pad, th, Math.max(1, h - pad * 2), th / 2);
+      }
+      ctx.fill();
+      ctx.strokeRect(x0, y0, w, h);
+    }
+    for (const e of edges) {
+      const [a, b, c2, d] = e.rect;
+      ctx.strokeRect(ox + a * k, oy + b * k, (c2 - a) * k, (d - b) * k);
+    }
+  }
+
+  // ---------- chrome / helpers ----------
+  function updateChrome() {
+    cellchip.textContent = '格 ' + cell() + 'px' + (locked ? '｜鎖定 @' + selC + 'px' : '');
+    clearBtn.hidden = sel.size === 0;
+    tLock.setAttribute('aria-pressed', locked);
+    tHint.setAttribute('aria-pressed', hint);
+    tIn.disabled = level === LEVELS.length - 1;
+    tOut.disabled = level === 0;
+    tArrow.setAttribute('aria-pressed', tool === 'arrow');
+    tHand.setAttribute('aria-pressed', tool === 'hand');
+    cv.classList.toggle('hand', tool === 'hand');
+    rm.disabled = !img;
+  }
+
+  let toastTimer = 0;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2200);
+  }
+
+  function copyText(t) {
+    let p;
+    try { p = navigator.clipboard.writeText(t); } catch (_) { p = Promise.reject(); }
+    p.then(() => toast('已複製　' + t)).catch(() => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        toast((ok ? '已複製　' : '無法複製　') + t);
+      } catch (_) { toast('無法複製　' + t); }
+    });
+  }
+
+  function closePanel() { panel.hidden = true; }
+
+  // ---------- input ----------
+  function tap(x, y) {
+    if (locked) { toast('已鎖定，先解除鎖定才能改選格子'); return; }
+    const wx = (x - ox) / k, wy = (y - oy) / k;
+    if (wx < 0 || wy < 0 || wx >= W0 || wy >= H0) return;
+    const c = cell();
+    const key = Math.floor(wx / c) + ',' + Math.floor(wy / c);
+    if (sel.size === 0) selC = c;
+    if (sel.has(key)) sel.delete(key); else sel.add(key);
+    rebuild(); updateChrome(); draw();
+  }
+
+  const ptrs = new Map();
+  let moved = false, startX = 0, startY = 0, pinchD = 0;
+  cv.addEventListener('pointerdown', e => {
+    cv.setPointerCapture(e.pointerId);
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    closePanel();
+    if (ptrs.size === 1) { moved = false; startX = e.clientX; startY = e.clientY; }
+    else if (ptrs.size === 2) {
+      moved = true;
+      const [a, b] = [...ptrs.values()];
+      pinchD = Math.hypot(a.x - b.x, a.y - b.y);
+    }
+  });
+  cv.addEventListener('pointermove', e => {
+    const p = ptrs.get(e.pointerId);
+    if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    if (ptrs.size === 1) {
+      const th = tool === 'hand' ? 0 : 6;
+      if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) > th) moved = true;
+      if (moved) { ox += dx; oy += dy; clampView(); draw(); }
+    } else if (ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const r = d / (pinchD || d);
+      if (r > 1.4) { setLevel(level + 1, mx, my); pinchD = d; }
+      else if (r < 0.7) { setLevel(level - 1, mx, my); pinchD = d; }
+    }
+  });
+  function endPtr(e, isUp) {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.delete(e.pointerId);
+    if (isUp && ptrs.size === 0 && !moved && tool === 'arrow') tap(e.clientX, e.clientY);
+  }
+  cv.addEventListener('pointerup', e => endPtr(e, true));
+  cv.addEventListener('pointercancel', e => endPtr(e, false));
+  document.addEventListener('gesturestart', e => e.preventDefault());
+
+  tArrow.addEventListener('click', () => { tool = 'arrow'; updateChrome(); });
+  tHand.addEventListener('click', () => { tool = 'hand'; updateChrome(); });
+  tIn.addEventListener('click', () => setLevel(level + 1));
+  tOut.addEventListener('click', () => setLevel(level - 1));
+  clearBtn.addEventListener('click', () => { sel.clear(); locked = false; rebuild(); updateChrome(); draw(); });
+  tLock.addEventListener('click', () => {
+    if (!locked && sel.size === 0) { toast('先點格子，再鎖定'); return; }
+    locked = !locked;
+    if (!locked && selC !== cell()) { sel.clear(); rebuild(); toast('已解除鎖定，並清除不同格大小的選取'); }
+    else toast(locked ? '已鎖定，縮放後提示不會變' : '已解除鎖定');
+    updateChrome(); draw();
+  });
+  tHint.addEventListener('click', () => { hint = !hint; updateChrome(); draw(); });
+
+  tImg.addEventListener('click', () => {
+    if (panel.hidden) {
+      panel.style.top = Math.max(8, tImg.getBoundingClientRect().top - 8) + 'px';
+      panel.hidden = false;
+    } else closePanel();
+  });
+  tX.addEventListener('click', () => {
+    closePanel();
+    tab.style.top = tX.getBoundingClientRect().top + 'px';
+    menu.classList.add('collapsed');
+    tab.hidden = false;
+  });
+  tab.addEventListener('click', () => { menu.classList.remove('collapsed'); tab.hidden = true; });
+
+  $('pick').addEventListener('click', () => fileIn.click());
+  fileIn.addEventListener('change', () => {
+    const f = fileIn.files && fileIn.files[0];
+    if (!f) return;
+    const url = URL.createObjectURL(f);
+    const im = new Image();
+    im.onload = () => {
+      img = im; updateChrome(); draw(); closePanel();
+      const ratio = im.naturalWidth / im.naturalHeight;
+      if (Math.abs(ratio / (W0 / H0) - 1) > 0.02) toast('截圖比例和 iPhone 14 Pro 不同，已拉伸成 393×852');
+      else toast('已載入截圖');
+    };
+    im.onerror = () => toast('這個檔案無法當作圖片開啟');
+    im.src = url;
+    fileIn.value = '';
+  });
+  opa.addEventListener('input', () => {
+    imgOpacity = Number(opa.value) / 100;
+    opaOut.textContent = opa.value + '%';
+    draw();
+  });
+  rm.addEventListener('click', () => { img = null; updateChrome(); draw(); });
+
+  window.addEventListener('resize', resize);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { refreshTheme(); draw(); });
+  new MutationObserver(() => { refreshTheme(); draw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  refreshTheme();
+  resize();
+  updateChrome();
+})();
+</script>
+
+</body>
+</html>
